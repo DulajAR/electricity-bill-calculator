@@ -1,30 +1,25 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:electricity_bill_calculator/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Electricity calculator home screen loads', (
+    WidgetTester tester,
+  ) async {
+    // Launch the application.
+    await tester.pumpWidget(const ElectricityBillApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the home screen is displayed.
+    expect(find.text('Electricity Bill Calculator'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify that the electricity providers are available.
+    expect(find.text('CEB'), findsOneWidget);
+    expect(find.text('LECO'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the Calculate Bill button exists.
+    expect(find.text('Calculate Bill'), findsOneWidget);
+
+    // Verify the bottom navigation bar.
+    expect(find.byType(NavigationBar), findsOneWidget);
   });
 }
