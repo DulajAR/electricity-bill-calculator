@@ -1,6 +1,9 @@
+
+import 'billing_period_service.dart';
+
 class BillChargeLine {
   final String description;
-  final int units;
+  final double units;
   final double rate;
   final double amount;
 
@@ -14,6 +17,7 @@ class BillChargeLine {
 
 class BillResult {
   final int units;
+  final int billingDays;
   final String provider;
   final double energyCharge;
   final double fixedCharge;
@@ -23,6 +27,7 @@ class BillResult {
 
   const BillResult({
     required this.units,
+    required this.billingDays,
     required this.provider,
     required this.energyCharge,
     required this.fixedCharge,
@@ -35,8 +40,11 @@ class BillResult {
 class BillCalculatorService {
   static const String tariffEffectiveDate = '2026-05-11';
 
-  // Initial scope: standard domestic block tariff,
-  // exactly 30 billing days, effective from 11 May 2026.
+  // This is a provisional tariff implementation.
+  // Rates are preserved from the existing calculation service.
+  // Production use requires effective-date tariff selection
+  // and verification of the billing/rounding rules.
+
   static BillResult calculate({
     required int units,
     required String provider,
@@ -51,28 +59,56 @@ class BillCalculatorService {
       throw ArgumentError('Unsupported provider.');
     }
 
-    final days = DateTime.utc(endDate.year, endDate.month, endDate.day)
-        .difference(
-          DateTime.utc(startDate.year, startDate.month, startDate.day),
-        )
-        .inDays;
+    final days = BillingPeriodService.billingDays(
+      startDate,
+      endDate,
+    );
 
-    if (days != 30) {
-      throw ArgumentError('This version supports exactly 30 billing days.');
-    }
+    final start = DateTime.utc(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
 
-    final effectiveDate = DateTime(2026, 5, 11);
+    final effective = DateTime.utc(2026, 5, 11);
 
-    if (startDate.isBefore(effectiveDate)) {
+    if (start.isBefore(effective)) {
       throw ArgumentError(
         'This tariff version supports periods starting '
         'on or after 11 May 2026.',
       );
     }
 
+    // A later tariff revision must be handled by a
+    // versioned tariff selector before production release.
+
+    final monthlyEquivalent =
+        BillingPeriodService.monthlyEquivalentUnits(
+          units,
+          days,
+        );
+
+    double threshold(int monthlyLimit) {
+      return BillingPeriodService.proratedThreshold(
+        monthlyLimit,
+        days,
+      );
+    }
+
     final breakdown = <BillChargeLine>[];
 
-    void addBlock(String description, int blockUnits, double rate) {
+    void addBlock(
+      String description,
+      double lower,
+      double? upper,
+      double rate,
+    ) {
+      final blockUnits = upper == null
+          ? (units - lower).clamp(0.0, double.infinity).toDouble()
+          : (units.toDouble() - lower)
+                .clamp(0.0, upper - lower)
+                .toDouble();
+
       if (blockUnits <= 0) return;
 
       breakdown.add(
@@ -87,46 +123,85 @@ class BillCalculatorService {
 
     double fixedCharge;
 
-    if (units <= 60) {
-      // Domestic consumption: 0-60 units
-      addBlock('0-30 kWh', units.clamp(0, 30), 5.00);
+    if (monthlyEquivalent <= 60) {
+      addBlock(
+        '0-30 kWh (prorated)',
+        0,
+        threshold(30),
+        5.00,
+      );
 
-      addBlock('31-60 kWh', (units - 30).clamp(0, 30), 9.00);
+      addBlock(
+        '31-60 kWh (prorated)',
+        threshold(30),
+        threshold(60),
+        9.00,
+      );
 
-      fixedCharge = units <= 30 ? 80.00 : 210.00;
-    } else if (units <= 180) {
-      // Domestic consumption: 61-180 units
-      addBlock('0-60 kWh', 60, 14.00);
+      fixedCharge =
+          monthlyEquivalent <= 30 ? 80.00 : 210.00;
+    } else if (monthlyEquivalent <= 180) {
+      addBlock(
+        '0-60 kWh (prorated)',
+        0,
+        threshold(60),
+        14.00,
+      );
 
-      addBlock('61-90 kWh', (units - 60).clamp(0, 30), 20.00);
+      addBlock(
+        '61-90 kWh (prorated)',
+        threshold(60),
+        threshold(90),
+        20.00,
+      );
 
-      addBlock('91-120 kWh', (units - 90).clamp(0, 30), 28.00);
+      addBlock(
+        '91-120 kWh (prorated)',
+        threshold(90),
+        threshold(120),
+        28.00,
+      );
 
-      addBlock('121-180 kWh', (units - 120).clamp(0, 60), 44.00);
+      addBlock(
+        '121-180 kWh (prorated)',
+        threshold(120),
+        threshold(180),
+        44.00,
+      );
 
-      if (units <= 90) {
+      if (monthlyEquivalent <= 90) {
         fixedCharge = 400.00;
-      } else if (units <= 120) {
+      } else if (monthlyEquivalent <= 120) {
         fixedCharge = 1000.00;
       } else {
         fixedCharge = 1500.00;
       }
     } else {
-      // Domestic consumption: above 180 units
-      addBlock('0-180 kWh', 180, 32.50);
+      addBlock(
+        '0-180 kWh (prorated)',
+        0,
+        threshold(180),
+        32.50,
+      );
 
-      addBlock('Above 180 kWh', units - 180, 100.00);
+      addBlock(
+        'Above 180 kWh (prorated)',
+        threshold(180),
+        null,
+        100.00,
+      );
 
       fixedCharge = 2500.00;
     }
 
     final energyCharge = breakdown.fold<double>(
-      0,
-      (sum, item) => sum + item.amount,
+      0.0,
+      (sum, line) => sum + line.amount,
     );
 
     return BillResult(
       units: units,
+      billingDays: days,
       provider: provider,
       energyCharge: energyCharge,
       fixedCharge: fixedCharge,
