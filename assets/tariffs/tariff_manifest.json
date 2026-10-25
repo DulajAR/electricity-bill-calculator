@@ -1,0 +1,14 @@
+
+{
+  "schemaVersion": 1,
+  "category": "domestic",
+  "tariffs": [
+    {
+      "id": "domestic_2026_05_11",
+      "effectiveDate": "2026-05-11",
+      "endDateExclusive": null,
+      "assetPath": "assets/tariffs/domestic_2026_05_11.json",
+      "status": "provisional"
+    }
+  ]
+}

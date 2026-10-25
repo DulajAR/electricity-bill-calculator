@@ -1,0 +1,82 @@
+
+{
+  "id": "domestic_2026_05_11",
+  "provider": ["CEB", "LECO"],
+  "category": "domestic",
+  "effectiveDate": "2026-05-11",
+  "status": "provisional",
+  "currency": "LKR",
+  "referenceDays": 30,
+  "lowConsumption": {
+    "maximumMonthlyUnits": 60,
+    "blocks": [
+      {
+        "upTo": 30,
+        "rate": 5.0
+      },
+      {
+        "upTo": 60,
+        "rate": 9.0
+      }
+    ],
+    "fixedCharges": [
+      {
+        "upTo": 30,
+        "amount": 80.0
+      },
+      {
+        "upTo": 60,
+        "amount": 210.0
+      }
+    ]
+  },
+  "mediumConsumption": {
+    "maximumMonthlyUnits": 180,
+    "blocks": [
+      {
+        "upTo": 60,
+        "rate": 14.0
+      },
+      {
+        "upTo": 90,
+        "rate": 20.0
+      },
+      {
+        "upTo": 120,
+        "rate": 28.0
+      },
+      {
+        "upTo": 180,
+        "rate": 44.0
+      }
+    ],
+    "fixedCharges": [
+      {
+        "upTo": 90,
+        "amount": 400.0
+      },
+      {
+        "upTo": 120,
+        "amount": 1000.0
+      },
+      {
+        "upTo": 180,
+        "amount": 1500.0
+      }
+    ]
+  },
+  "highConsumption": {
+    "minimumMonthlyUnitsExclusive": 180,
+    "blocks": [
+      {
+        "upTo": 180,
+        "rate": 32.5
+      },
+      {
+        "upTo": null,
+        "rate": 100.0
+      }
+    ],
+    "fixedCharge": 2500.0
+  }
+}
