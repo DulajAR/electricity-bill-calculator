@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/bill_calculator_service.dart';
+import 'bill_details_screen.dart';
 import '../widgets/gradient_header.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,6 +22,10 @@ class _HomeScreenState extends State<HomeScreen> {
   String provider = 'CEB';
   bool useMeterReadings = true;
   int selectedNavigationIndex = 0;
+  bool isCalculating = false;
+  BillResult? lastResult;
+  DateTime? lastStartDate;
+  DateTime? lastEndDate;
 
   final previousController = TextEditingController();
   final currentController = TextEditingController();
@@ -89,22 +97,66 @@ class _HomeScreenState extends State<HomeScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void calculateBill() {
-    final units = consumedUnits;
+  Future<void> calculateBill() async {
+    if (isCalculating) return;
 
+    final units = consumedUnits;
     if (units == null || units < 0) {
       showMessage('Please enter valid electricity readings or units.');
       return;
     }
 
-    if (startDate == null || endDate == null || !endDate!.isAfter(startDate!)) {
+    final start = startDate;
+    final end = endDate;
+    if (start == null || end == null || !end.isAfter(start)) {
       showMessage('Please select a valid billing period.');
       return;
     }
 
-    showMessage('$provider • $units kWh • Input validated successfully');
+    setState(() => isCalculating = true);
+    try {
+      // Development preview ONLY: bypasses the verified-only repository.
+      // Do not use this path for production or official bill estimates.
+      final content = await rootBundle.loadString(
+        'assets/tariffs/domestic_2026_05_11.json',
+      );
+      final tariff = jsonDecode(content) as Map<String, dynamic>;
+      if (tariff['status'] != 'provisional') {
+        throw StateError('Development preview expects a provisional tariff.');
+      }
 
-    // TODO: Connect the verified electricity tariff calculation service.
+      final result = BillCalculatorService.calculateWithTariff(
+        units: units,
+        provider: provider,
+        startDate: start,
+        endDate: end,
+        tariff: tariff,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        lastResult = result;
+        lastStartDate = start;
+        lastEndDate = end;
+      });
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              BillDetailsScreen(result: result, startDate: start, endDate: end),
+        ),
+      );
+    } on FormatException catch (error) {
+      if (mounted) showMessage('Invalid tariff data: ${error.message}');
+    } on ArgumentError catch (error) {
+      if (mounted)
+        showMessage(error.message?.toString() ?? 'Invalid billing input.');
+    } on StateError catch (error) {
+      if (mounted) showMessage(error.message);
+    } catch (_) {
+      if (mounted) showMessage('Unable to calculate the preview bill.');
+    } finally {
+      if (mounted) setState(() => isCalculating = false);
+    }
   }
 
   void onNavigationSelected(int index) {
@@ -113,8 +165,24 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    const pages = ['Calculator', 'Bill Details', 'Tariff Rates', 'Settings'];
+    if (index == 1) {
+      final result = lastResult;
+      final start = lastStartDate;
+      final end = lastEndDate;
+      if (result == null || start == null || end == null) {
+        showMessage('Calculate a bill first to view its details.');
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              BillDetailsScreen(result: result, startDate: start, endDate: end),
+        ),
+      );
+      return;
+    }
 
+    const pages = ['Calculator', 'Bill Details', 'Tariff Rates', 'Settings'];
     showMessage('${pages[index]} screen will be implemented next.');
   }
 
@@ -507,10 +575,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: calculateBill,
-                        icon: const Icon(Icons.calculate_outlined),
-                        label: const Text(
-                          'Calculate Bill',
+                        onPressed: isCalculating ? null : calculateBill,
+                        icon: isCalculating
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.calculate_outlined),
+                        label: Text(
+                          isCalculating ? 'Calculating...' : 'Calculate Bill',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
