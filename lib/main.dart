@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+
 import 'screens/home_screen.dart';
 
 void main() {
@@ -16,9 +16,7 @@ class ElectricityBillApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0866D8),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0866D8)),
       ),
       home: const HomeScreen(),
     );

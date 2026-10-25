@@ -1,5 +1,7 @@
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../widgets/gradient_header.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,8 +11,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const Color primaryBlue = Color(0xFF0866D8);
+  static const Color background = Color(0xFFF7F9FC);
+  static const Color textDark = Color(0xFF14213D);
+
   String provider = 'CEB';
   bool useMeterReadings = true;
+  int selectedNavigationIndex = 0;
 
   final previousController = TextEditingController();
   final currentController = TextEditingController();
@@ -18,8 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   DateTime? startDate;
   DateTime? endDate;
-
-  static const primaryBlue = Color(0xFF0866D8);
 
   @override
   void dispose() {
@@ -44,244 +49,85 @@ class _HomeScreenState extends State<HomeScreen> {
     return current - previous;
   }
 
-  Future<void> selectDate(bool isStart) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-
-    if (date != null) {
-      setState(() {
-        if (isStart) {
-          startDate = date;
-        } else {
-          endDate = date;
-        }
-      });
-    }
-  }
-
   String formatDate(DateTime? date) {
     if (date == null) return 'Select date';
 
-    return '${date.day}/${date.month}/${date.year}';
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Future<void> selectDate(bool isStart) async {
+    final now = DateTime.now();
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: isStart
+          ? (startDate ?? now)
+          : (endDate ?? startDate?.add(const Duration(days: 30)) ?? now),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: isStart
+          ? 'Select billing start date'
+          : 'Select billing end date',
+    );
+
+    if (!mounted || date == null) return;
+
+    setState(() {
+      if (isStart) {
+        startDate = date;
+      } else {
+        endDate = date;
+      }
+    });
+  }
+
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void calculateBill() {
     final units = consumedUnits;
 
     if (units == null || units < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter valid electricity readings or units.'),
-        ),
-      );
+      showMessage('Please enter valid electricity readings or units.');
       return;
     }
 
-    if (startDate == null ||
-        endDate == null ||
-        !endDate!.isAfter(startDate!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a valid billing period.'),
-        ),
-      );
+    if (startDate == null || endDate == null || !endDate!.isAfter(startDate!)) {
+      showMessage('Please select a valid billing period.');
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$provider • $units kWh • Input validated successfully',
-        ),
-      ),
-    );
+    showMessage('$provider • $units kWh • Input validated successfully');
 
-    // Next: connect the verified tariff calculation service.
+    // TODO: Connect the verified electricity tariff calculation service.
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FC),
-      appBar: AppBar(
-        title: const Text(
-          'Electricity Bill Calculator',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  void onNavigationSelected(int index) {
+    if (index == 0) {
+      setState(() => selectedNavigationIndex = 0);
+      return;
+    }
+
+    const pages = ['Calculator', 'Bill Details', 'Tariff Rates', 'Settings'];
+
+    showMessage('${pages[index]} screen will be implemented next.');
+  }
+
+  Widget sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: textDark,
         ),
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            'Calculate your estimated electricity bill',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          const Text(
-            'Select electricity provider',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              providerCard('CEB'),
-              const SizedBox(width: 12),
-              providerCard('LECO'),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          const Text(
-            'Consumption entry method',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(
-                value: true,
-                label: Text('Meter Readings'),
-              ),
-              ButtonSegment(
-                value: false,
-                label: Text('Total Units'),
-              ),
-            ],
-            selected: {useMeterReadings},
-            onSelectionChanged: (selection) {
-              setState(() {
-                useMeterReadings = selection.first;
-              });
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          Card(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    useMeterReadings
-                        ? 'Enter Meter Readings'
-                        : 'Enter Total Units',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (useMeterReadings) ...[
-                    inputField(
-                      'Previous Meter Reading',
-                      previousController,
-                    ),
-                    const SizedBox(height: 12),
-                    inputField(
-                      'Current Meter Reading',
-                      currentController,
-                    ),
-                  ] else
-                    inputField(
-                      'Consumed Units (kWh)',
-                      unitsController,
-                    ),
-
-                  const SizedBox(height: 16),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE7F1FF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Units Consumed: ${consumedUnits?.toString() ?? '--'} kWh',
-                      style: const TextStyle(
-                        color: primaryBlue,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          Card(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Billing Period',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  dateButton('Start Date', startDate, true),
-                  const SizedBox(height: 8),
-                  dateButton('End Date', endDate, false),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          SizedBox(
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: calculateBill,
-              icon: const Icon(Icons.calculate),
-              label: const Text('Calculate Bill'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            'Unofficial electricity bill estimator. '
-            'Actual charges may vary based on applicable tariffs.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -292,27 +138,57 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => provider = name),
-        child: Container(
-          padding: const EdgeInsets.all(20),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFFE7F1FF)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            color: selected ? const Color(0xFFE7F1FF) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? primaryBlue : Colors.grey.shade300,
+              color: selected ? primaryBlue : const Color(0xFFE1E8F0),
               width: selected ? 2 : 1,
             ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.electric_bolt, color: primaryBlue),
-              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Icon(Icons.electric_bolt, color: primaryBlue, size: 30),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: selected ? primaryBlue : Colors.grey,
+                    size: 21,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Text(
                 name,
                 style: const TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: textDark,
                 ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                name == 'CEB'
+                    ? 'Ceylon Electricity Board'
+                    : 'Lanka Electricity Company',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                maxLines: 2,
               ),
             ],
           ),
@@ -323,30 +199,393 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget inputField(
     String label,
-    TextEditingController controller,
-  ) {
+    TextEditingController controller, {
+    String? hint,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
+        hintText: hint,
+        prefixIcon: const Icon(Icons.speed_outlined, color: primaryBlue),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
         ),
       ),
     );
   }
 
-  Widget dateButton(
-    String label,
-    DateTime? date,
-    bool isStart,
-  ) {
-    return OutlinedButton.icon(
-      onPressed: () => selectDate(isStart),
-      icon: const Icon(Icons.calendar_month),
-      label: Text('$label: ${formatDate(date)}'),
+  Widget dateButton(String label, DateTime? date, bool isStart) {
+    return InkWell(
+      onTap: () => selectDate(isStart),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFCBD5E1)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.calendar_month_outlined,
+              color: primaryBlue,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    formatDate(date),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: textDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget contentCard(Widget child) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: background,
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const GradientHeader(),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  sectionTitle('Select electricity provider'),
+
+                  Row(
+                    children: [
+                      providerCard('CEB'),
+                      const SizedBox(width: 12),
+                      providerCard('LECO'),
+                    ],
+                  ),
+
+                  const SizedBox(height: 26),
+
+                  sectionTitle('Consumption entry method'),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: true,
+                          icon: Icon(Icons.speed_outlined),
+                          label: Text('Meter Readings'),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          icon: Icon(Icons.bolt_outlined),
+                          label: Text('Total Units'),
+                        ),
+                      ],
+                      selected: {useMeterReadings},
+                      onSelectionChanged: (selection) {
+                        setState(() {
+                          useMeterReadings = selection.first;
+                        });
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  contentCard(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          useMeterReadings
+                              ? 'Enter Meter Readings'
+                              : 'Enter Total Units',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: textDark,
+                          ),
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        if (useMeterReadings)
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth < 330) {
+                                return Column(
+                                  children: [
+                                    inputField(
+                                      'Previous Reading',
+                                      previousController,
+                                      hint: 'e.g. 12500',
+                                    ),
+                                    const SizedBox(height: 12),
+                                    inputField(
+                                      'Current Reading',
+                                      currentController,
+                                      hint: 'e.g. 12850',
+                                    ),
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: inputField(
+                                      'Previous Reading',
+                                      previousController,
+                                      hint: '12500',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: inputField(
+                                      'Current Reading',
+                                      currentController,
+                                      hint: '12850',
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          )
+                        else
+                          inputField(
+                            'Total Units (kWh)',
+                            unitsController,
+                            hint: 'Enter consumed units',
+                          ),
+
+                        const SizedBox(height: 18),
+
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE7F1FF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.bolt,
+                                color: primaryBlue,
+                                size: 30,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Units Consumed',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${consumedUnits?.toString() ?? '--'} kWh',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryBlue,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  contentCard(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Billing Period',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: dateButton('Start Date', startDate, true),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: dateButton('End Date', endDate, false),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  SizedBox(
+                    height: 54,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF064AAB), Color(0xFF00A2FF)],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: calculateBill,
+                        icon: const Icon(Icons.calculate_outlined),
+                        label: const Text(
+                          'Calculate Bill',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF4D8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFFD56B)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline, color: Color(0xFFB77900)),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'This is an unofficial electricity bill estimator. '
+                            'Actual charges may vary based on applicable '
+                            'tariffs and adjustments.',
+                            style: TextStyle(fontSize: 12, color: textDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: selectedNavigationIndex,
+        onDestinationSelected: onNavigationSelected,
+        indicatorColor: const Color(0xFFE7F1FF),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home, color: primaryBlue),
+            label: 'Calculator',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            label: 'Bill Details',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            label: 'Tariff Rates',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Settings',
+          ),
+        ],
+      ),
     );
   }
 }
