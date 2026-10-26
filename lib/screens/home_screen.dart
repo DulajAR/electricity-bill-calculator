@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/bill_calculator_service.dart';
+import '../services/tariff_cache_service.dart';
+import '../services/remote_tariff_service.dart';
+import '../services/tariff_manifest_cache_service.dart';
+import '../services/tariff_update_service.dart';
+import '../services/tariff_selection_service.dart';
+import '../services/tariff_manifest_validator.dart';
 import 'bill_details_screen.dart';
 import '../widgets/gradient_header.dart';
 
@@ -26,6 +32,157 @@ class _HomeScreenState extends State<HomeScreen> {
   BillResult? lastResult;
   DateTime? lastStartDate;
   DateTime? lastEndDate;
+  bool lastWasProvisional = false;
+
+  final TariffCacheService _tariffCache = TariffCacheService();
+  final TariffManifestCacheService _manifestCache =
+      TariffManifestCacheService();
+  final RemoteTariffService _remoteTariffs = RemoteTariffService();
+  Future<void>? _updateFuture;
+  bool _isCheckingUpdates = false;
+  bool _lastUpdateCheckSucceeded = false;
+  DateTime? _lastSuccessfulCheck;
+  String _updateStatus = 'Checking GitHub for tariff updates...';
+
+  @override
+  void initState() {
+    super.initState();
+    // Start once per HomeScreen instance. Calculation remains usable offline.
+    _updateFuture = _checkTariffUpdates();
+  }
+
+  Future<void> _checkTariffUpdates() async {
+    if (!mounted || _isCheckingUpdates) return;
+    setState(() {
+      _isCheckingUpdates = true;
+      _updateStatus = 'Checking GitHub for tariff updates...';
+    });
+
+    try {
+      final count = await TariffUpdateService(
+        remoteService: _remoteTariffs,
+        cacheService: _tariffCache,
+        manifestCacheService: _manifestCache,
+      ).checkForUpdates();
+      if (!mounted) return;
+      setState(() {
+        _lastUpdateCheckSucceeded = true;
+        _lastSuccessfulCheck = DateTime.now();
+        _updateStatus = count > 0
+            ? '$count verified tariff file(s) downloaded.'
+            : 'GitHub check completed. No new verified tariffs.';
+      });
+    } catch (_) {
+      // Do not imply that a failed check was successful or that a
+      // locally available provisional tariff is verified.
+      if (!mounted) return;
+      setState(() {
+        _lastUpdateCheckSucceeded = false;
+        _updateStatus = 'Update check unavailable. Using local tariff data.';
+      });
+    } finally {
+      if (mounted) setState(() => _isCheckingUpdates = false);
+    }
+  }
+
+  void _startTariffUpdateCheck() {
+    if (_isCheckingUpdates) return;
+    _updateFuture = _checkTariffUpdates();
+  }
+
+  String _formatLastCheck(DateTime value) {
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year} '
+        '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  Widget _tariffUpdateCard() {
+    final lastCheck = _lastSuccessfulCheck;
+    return contentCard(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.sync, color: primaryBlue),
+              SizedBox(width: 10),
+              Text(
+                'Tariff Updates',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                _isCheckingUpdates
+                    ? Icons.hourglass_top_outlined
+                    : _lastUpdateCheckSucceeded
+                    ? Icons.check_circle_outline
+                    : Icons.cloud_off_outlined,
+                color: _lastUpdateCheckSucceeded
+                    ? const Color(0xFF237A4B)
+                    : const Color(0xFF64748B),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_updateStatus)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            lastCheck == null
+                ? 'Last successful check: Not yet available'
+                : 'Last successful check: ${_formatLastCheck(lastCheck)}',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Update status does not confirm that tariff rates are official. '
+            'Only verified tariff entries are used automatically.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _isCheckingUpdates ? null : _startTariffUpdateCheck,
+            icon: _isCheckingUpdates
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            label: Text(
+              _isCheckingUpdates ? 'Checking...' : 'Check for Updates',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadActiveManifest() async {
+    final cached = await _manifestCache.loadManifest();
+    if (cached != null) return cached;
+
+    final content = await rootBundle.loadString(
+      'assets/tariffs/tariff_manifest.json',
+    );
+    final decoded = jsonDecode(content);
+    if (decoded is! Map<String, dynamic> ||
+        decoded['schemaVersion'] != 1 ||
+        decoded['category'] != 'domestic' ||
+        decoded['tariffs'] is! List) {
+      throw const FormatException('Invalid bundled tariff manifest.');
+    }
+    return decoded;
+  }
 
   final previousController = TextEditingController();
   final currentController = TextEditingController();
@@ -36,6 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _remoteTariffs.dispose();
     previousController.dispose();
     currentController.dispose();
     unitsController.dispose();
@@ -97,6 +255,31 @@ class _HomeScreenState extends State<HomeScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<bool> _confirmProvisionalPreview() async {
+    final choice = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Provisional tariff preview'),
+        content: const Text(
+          'No verified tariff covering this billing period was found in '
+          'the local tariff index and cache. You can view a development '
+          'preview using unverified rates. This is not an official bill estimate.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('View preview'),
+          ),
+        ],
+      ),
+    );
+    return choice == true;
+  }
+
   Future<void> calculateBill() async {
     if (isCalculating) return;
 
@@ -115,14 +298,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() => isCalculating = true);
     try {
-      // Development preview ONLY: bypasses the verified-only repository.
-      // Do not use this path for production or official bill estimates.
-      final content = await rootBundle.loadString(
-        'assets/tariffs/domestic_2026_05_11.json',
+      // Wait for an in-flight update, then read the activated manifest.
+      // Failed network requests are handled inside _checkTariffUpdates.
+      await _updateFuture;
+      final manifest = await _loadActiveManifest();
+
+      final entries = <Map<String, dynamic>>[];
+      for (final item in manifest['tariffs'] as List) {
+        if (item is! Map<String, dynamic>) {
+          throw const FormatException('Invalid tariff manifest entry.');
+        }
+        entries.add(item);
+      }
+      TariffManifestValidator.validate(entries);
+
+      final selector = TariffSelectionService(cacheService: _tariffCache);
+      Map<String, dynamic>? tariff = await selector.selectTariff(
+        startDate: start,
+        endDate: end,
+        tariffEntries: entries,
       );
-      final tariff = jsonDecode(content) as Map<String, dynamic>;
-      if (tariff['status'] != 'provisional') {
-        throw StateError('Development preview expects a provisional tariff.');
+
+      final isProvisional = tariff == null;
+      if (isProvisional) {
+        if (!mounted) return;
+        final confirmed = await _confirmProvisionalPreview();
+        if (!mounted || !confirmed) return;
+
+        final content = await rootBundle.loadString(
+          'assets/tariffs/domestic_2026_05_11.json',
+        );
+        final decoded = jsonDecode(content);
+        if (decoded is! Map<String, dynamic> ||
+            decoded['status'] != 'provisional') {
+          throw const FormatException('Invalid provisional preview tariff.');
+        }
+        tariff = decoded;
       }
 
       final result = BillCalculatorService.calculateWithTariff(
@@ -138,22 +349,31 @@ class _HomeScreenState extends State<HomeScreen> {
         lastResult = result;
         lastStartDate = start;
         lastEndDate = end;
+        lastWasProvisional = isProvisional;
       });
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              BillDetailsScreen(result: result, startDate: start, endDate: end),
+          builder: (_) => BillDetailsScreen(
+            result: result,
+            startDate: start,
+            endDate: end,
+            isVerifiedTariff: !isProvisional,
+          ),
         ),
       );
+      if (mounted && isProvisional) {
+        showMessage('Provisional preview only — rates are not verified.');
+      }
     } on FormatException catch (error) {
       if (mounted) showMessage('Invalid tariff data: ${error.message}');
     } on ArgumentError catch (error) {
-      if (mounted)
+      if (mounted) {
         showMessage(error.message?.toString() ?? 'Invalid billing input.');
+      }
     } on StateError catch (error) {
       if (mounted) showMessage(error.message);
     } catch (_) {
-      if (mounted) showMessage('Unable to calculate the preview bill.');
+      if (mounted) showMessage('Unable to calculate the electricity bill.');
     } finally {
       if (mounted) setState(() => isCalculating = false);
     }
@@ -173,10 +393,17 @@ class _HomeScreenState extends State<HomeScreen> {
         showMessage('Calculate a bill first to view its details.');
         return;
       }
+      if (lastWasProvisional) {
+        showMessage('Opening a provisional preview with unverified rates.');
+      }
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              BillDetailsScreen(result: result, startDate: start, endDate: end),
+          builder: (_) => BillDetailsScreen(
+            result: result,
+            startDate: start,
+            endDate: end,
+            isVerifiedTariff: !lastWasProvisional,
+          ),
         ),
       );
       return;
@@ -563,6 +790,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 20),
+
+                  _tariffUpdateCard(),
+
                   const SizedBox(height: 22),
 
                   SizedBox(
@@ -622,8 +853,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Text(
                             'This is an unofficial electricity bill estimator. '
-                            'Actual charges may vary based on applicable '
-                            'tariffs and adjustments.',
+                            'Provisional previews use unverified rates and '
+                            'must not be treated as actual CEB/LECO bills.',
                             style: TextStyle(fontSize: 12, color: textDark),
                           ),
                         ),
