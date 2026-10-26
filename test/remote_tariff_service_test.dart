@@ -16,7 +16,7 @@ void main() {
     }
   });
 
-  test('Download tariff JSON from GitHub', () async {
+  test('Download verified tariff JSON from GitHub', () async {
     final service = RemoteTariffService();
 
     try {
@@ -24,7 +24,7 @@ void main() {
 
       expect(tariff['id'], 'domestic_2026_05_11');
       expect(tariff['category'], 'domestic');
-      expect(tariff['status'], 'provisional');
+      expect(tariff['status'], 'verified');
     } finally {
       service.dispose();
     }

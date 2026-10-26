@@ -11,6 +11,7 @@ import '../services/tariff_update_service.dart';
 import '../services/tariff_selection_service.dart';
 import '../services/tariff_manifest_validator.dart';
 import 'bill_details_screen.dart';
+import 'tariff_rates_screen.dart';
 import '../widgets/gradient_header.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -409,8 +410,16 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    const pages = ['Calculator', 'Bill Details', 'Tariff Rates', 'Settings'];
-    showMessage('${pages[index]} screen will be implemented next.');
+    if (index == 2) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const TariffRatesScreen()),
+      );
+      return;
+    }
+
+    if (index == 3) {
+      showMessage('Settings screen will be implemented next.');
+    }
   }
 
   Widget sectionTitle(String title) {
