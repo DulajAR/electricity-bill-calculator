@@ -10,8 +10,10 @@ import '../services/tariff_manifest_cache_service.dart';
 import '../services/tariff_update_service.dart';
 import '../services/tariff_selection_service.dart';
 import '../services/tariff_manifest_validator.dart';
+import '../services/app_settings_service.dart';
 import 'bill_details_screen.dart';
 import 'tariff_rates_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/gradient_header.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,8 +25,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const Color primaryBlue = Color(0xFF0866D8);
-  static const Color background = Color(0xFFF7F9FC);
-  static const Color textDark = Color(0xFF14213D);
+  Color get background => Theme.of(context).colorScheme.surface;
+  Color get textDark => Theme.of(context).colorScheme.onSurface;
+  Color get mutedText => Theme.of(context).colorScheme.onSurfaceVariant;
+  Color get cardColor => Theme.of(context).colorScheme.surfaceContainerLow;
+  Color get selectedColor => Theme.of(context).colorScheme.primaryContainer;
+  Color get fieldBorder => Theme.of(context).colorScheme.outlineVariant;
 
   String provider = 'CEB';
   bool useMeterReadings = true;
@@ -45,11 +51,66 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime? _lastSuccessfulCheck;
   String _updateStatus = 'Checking GitHub for tariff updates...';
 
+  final AppSettingsService _settingsService = AppSettingsService();
+
+  Future<void> _loadDefaultProvider() async {
+    try {
+      final savedProvider = await _settingsService.getDefaultProvider();
+      if (!mounted) return;
+      setState(() => provider = savedProvider);
+    } catch (_) {
+      // Keep the current provider if loading preferences fails.
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    // Start once per HomeScreen instance. Calculation remains usable offline.
-    _updateFuture = _checkTariffUpdates();
+    _loadDefaultProvider();
+    // Read the saved preference before deciding whether to check GitHub.
+    // Offline calculations still use local tariffs when checks are disabled.
+    _updateFuture = _initializeAutomaticUpdates();
+  }
+
+  Future<void> _initializeAutomaticUpdates() async {
+    try {
+      final enabled = await _settingsService.getAutomaticTariffUpdates();
+      if (!mounted) return;
+      if (enabled) {
+        await _checkTariffUpdates();
+      } else {
+        setState(() {
+          _updateStatus = 'Automatic checks disabled. Using local tariff data.';
+          _lastUpdateCheckSucceeded = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _updateStatus =
+            'Update preference unavailable. Using local tariff data.';
+      });
+    }
+  }
+
+  Future<void> _refreshAutomaticUpdateStatus() async {
+    try {
+      final enabled = await _settingsService.getAutomaticTariffUpdates();
+      if (!mounted || _isCheckingUpdates) return;
+      if (!enabled) {
+        setState(() {
+          _updateStatus = 'Automatic checks disabled. Using local tariff data.';
+        });
+      } else if (_updateStatus ==
+          'Automatic checks disabled. Using local tariff data.') {
+        setState(() {
+          _updateStatus =
+              'Automatic checks enabled. Check manually or restart the app.';
+        });
+      }
+    } catch (_) {
+      // Keep the last known status if preferences cannot be read.
+    }
   }
 
   Future<void> _checkTariffUpdates() async {
@@ -103,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.sync, color: primaryBlue),
               SizedBox(width: 10),
@@ -129,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     : Icons.cloud_off_outlined,
                 color: _lastUpdateCheckSucceeded
                     ? const Color(0xFF237A4B)
-                    : const Color(0xFF64748B),
+                    : mutedText,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -141,13 +202,13 @@ class _HomeScreenState extends State<HomeScreen> {
             lastCheck == null
                 ? 'Last successful check: Not yet available'
                 : 'Last successful check: ${_formatLastCheck(lastCheck)}',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            style: TextStyle(fontSize: 12, color: mutedText),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Update status does not confirm that tariff rates are official. '
             'Only verified tariff entries are used automatically.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            style: TextStyle(fontSize: 12, color: mutedText),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -261,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Provisional tariff preview'),
-        content: const Text(
+        content: Text(
           'No verified tariff covering this billing period was found in '
           'the local tariff index and cache. You can view a development '
           'preview using unverified rates. This is not an official bill estimate.',
@@ -418,7 +479,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (index == 3) {
-      showMessage('Settings screen will be implemented next.');
+      Navigator.of(context)
+          .push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()))
+          .then((_) {
+            if (mounted) {
+              _loadDefaultProvider();
+              _refreshAutomaticUpdateStatus();
+            }
+          });
+      return;
     }
   }
 
@@ -427,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
           color: textDark,
@@ -447,10 +516,10 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFE7F1FF) : Colors.white,
+            color: selected ? selectedColor : cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? primaryBlue : const Color(0xFFE1E8F0),
+              color: selected ? primaryBlue : fieldBorder,
               width: selected ? 2 : 1,
             ),
             boxShadow: const [
@@ -480,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               Text(
                 name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: textDark,
@@ -491,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 name == 'CEB'
                     ? 'Ceylon Electricity Board'
                     : 'Lanka Electricity Company',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 11, color: mutedText),
                 maxLines: 2,
               ),
             ],
@@ -516,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
         hintText: hint,
         prefixIcon: const Icon(Icons.speed_outlined, color: primaryBlue),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: cardColor,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 16,
@@ -524,7 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+          borderSide: BorderSide(color: fieldBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -541,9 +610,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFCBD5E1)),
+          border: Border.all(color: fieldBorder),
         ),
         child: Row(
           children: [
@@ -557,17 +626,11 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
+                  Text(label, style: TextStyle(fontSize: 11, color: mutedText)),
                   const SizedBox(height: 3),
                   Text(
                     formatDate(date),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: textDark,
@@ -583,21 +646,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget contentCard(Widget child) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
+    return Material(
+      color: cardColor,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SizedBox(width: double.infinity, child: child),
       ),
-      child: child,
     );
   }
 
@@ -664,7 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           useMeterReadings
                               ? 'Enter Meter Readings'
                               : 'Enter Total Units',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: textDark,
@@ -728,7 +784,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE7F1FF),
+                            color: selectedColor,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
@@ -743,17 +799,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Units Consumed',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Color(0xFF64748B),
+                                        color: mutedText,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       '${consumedUnits?.toString() ?? '--'} kWh',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.bold,
                                         color: primaryBlue,
@@ -775,7 +831,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Billing Period',
                           style: TextStyle(
                             fontSize: 18,
@@ -850,14 +906,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF4D8),
+                      color: Theme.of(context).colorScheme.tertiaryContainer,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFFD56B)),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, color: Color(0xFFB77900)),
+                        Icon(
+                          Icons.info_outline,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onTertiaryContainer,
+                        ),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -882,7 +945,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedNavigationIndex,
         onDestinationSelected: onNavigationSelected,
-        indicatorColor: const Color(0xFFE7F1FF),
+        indicatorColor: selectedColor,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

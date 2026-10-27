@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -13,14 +12,12 @@ class RemoteTariffService {
   final bool _ownsClient;
 
   RemoteTariffService({http.Client? client})
-      : _client = client ?? http.Client(),
-        _ownsClient = client == null;
+    : _client = client ?? http.Client(),
+      _ownsClient = client == null;
 
   // Download the tariff manifest from GitHub.
   Future<Map<String, dynamic>> fetchManifest() async {
-    final uri = Uri.parse(
-      '$_baseUrl/tariff_manifest.json',
-    );
+    final uri = Uri.parse('$_baseUrl/tariff_manifest.json');
 
     final response = await _client
         .get(uri)
@@ -34,49 +31,33 @@ class RemoteTariffService {
     }
 
     if (response.bodyBytes.length > 100000) {
-      throw const FormatException(
-        'Tariff manifest exceeds size limit.',
-      );
+      throw const FormatException('Tariff manifest exceeds size limit.');
     }
 
-    final data = jsonDecode(
-      utf8.decode(response.bodyBytes),
-    );
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
 
     if (data is! Map<String, dynamic>) {
-      throw const FormatException(
-        'Invalid manifest JSON format.',
-      );
+      throw const FormatException('Invalid manifest JSON format.');
     }
 
     if (data['schemaVersion'] != 1 ||
         data['category'] != 'domestic' ||
         data['tariffs'] is! List) {
-      throw const FormatException(
-        'Unsupported tariff manifest.',
-      );
+      throw const FormatException('Unsupported tariff manifest.');
     }
 
     return data;
   }
 
   // Download a specific tariff JSON file.
-  Future<Map<String, dynamic>> fetchTariff(
-    String tariffId,
-  ) async {
-    final validId = RegExp(
-      r'^domestic_\d{4}_\d{2}_\d{2}$',
-    );
+  Future<Map<String, dynamic>> fetchTariff(String tariffId) async {
+    final validId = RegExp(r'^domestic_\d{4}_\d{2}_\d{2}$');
 
     if (!validId.hasMatch(tariffId)) {
-      throw const FormatException(
-        'Invalid tariff ID.',
-      );
+      throw const FormatException('Invalid tariff ID.');
     }
 
-    final uri = Uri.parse(
-      '$_baseUrl/$tariffId.json',
-    );
+    final uri = Uri.parse('$_baseUrl/$tariffId.json');
 
     final response = await _client
         .get(uri)
@@ -90,26 +71,17 @@ class RemoteTariffService {
     }
 
     if (response.bodyBytes.length > 100000) {
-      throw const FormatException(
-        'Tariff JSON exceeds size limit.',
-      );
+      throw const FormatException('Tariff JSON exceeds size limit.');
     }
 
-    final data = jsonDecode(
-      utf8.decode(response.bodyBytes),
-    );
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
 
     if (data is! Map<String, dynamic>) {
-      throw const FormatException(
-        'Invalid tariff JSON format.',
-      );
+      throw const FormatException('Invalid tariff JSON format.');
     }
 
-    if (data['id'] != tariffId ||
-        data['category'] != 'domestic') {
-      throw const FormatException(
-        'Tariff metadata does not match.',
-      );
+    if (data['id'] != tariffId || data['category'] != 'domestic') {
+      throw const FormatException('Tariff metadata does not match.');
     }
 
     return data;

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../services/bill_calculator_service.dart';
@@ -21,7 +20,6 @@ class BillDetailsScreen extends StatelessWidget {
   });
 
   static const Color blue = Color(0xFF0866D8);
-  static const Color dark = Color(0xFF14213D);
 
   String money(double amount) {
     return 'Rs. ${amount.toStringAsFixed(2)}';
@@ -34,10 +32,12 @@ class BillDetailsScreen extends StatelessWidget {
   }
 
   Widget line(
+    BuildContext context,
     String title,
     String value, {
     bool emphasize = false,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
@@ -46,20 +46,16 @@ class BillDetailsScreen extends StatelessWidget {
             child: Text(
               title,
               style: TextStyle(
-                fontWeight: emphasize
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                color: dark,
+                fontWeight: emphasize ? FontWeight.bold : FontWeight.normal,
+                color: colors.onSurface,
               ),
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              fontWeight: emphasize
-                  ? FontWeight.bold
-                  : FontWeight.w600,
-              color: emphasize ? blue : dark,
+              fontWeight: emphasize ? FontWeight.bold : FontWeight.w600,
+              color: emphasize ? colors.primary : colors.onSurface,
             ),
           ),
         ],
@@ -67,33 +63,29 @@ class BillDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget panel({
+  Widget panel(
+    BuildContext context, {
     required String title,
     required Widget child,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
-              color: dark,
+              color: colors.onSurface,
             ),
           ),
           const SizedBox(height: 10),
@@ -103,14 +95,19 @@ class BillDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget tariffStatusBadge() {
-    final Color statusColor = isVerifiedTariff
-        ? const Color(0xFF166534)
-        : const Color(0xFF92400E);
+  Widget tariffStatusBadge(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color statusColor = isDark
+        ? (isVerifiedTariff ? const Color(0xFFBBF7D0) : const Color(0xFFFDE68A))
+        : (isVerifiedTariff
+              ? const Color(0xFF166534)
+              : const Color(0xFF92400E));
 
-    final Color statusBackground = isVerifiedTariff
-        ? const Color(0xFFDCFCE7)
-        : const Color(0xFFFEF3C7);
+    final Color statusBackground = isDark
+        ? (isVerifiedTariff ? const Color(0xFF14532D) : const Color(0xFF78350F))
+        : (isVerifiedTariff
+              ? const Color(0xFFDCFCE7)
+              : const Color(0xFFFEF3C7));
 
     final IconData statusIcon = isVerifiedTariff
         ? Icons.verified_outlined
@@ -121,10 +118,7 @@ class BillDetailsScreen extends StatelessWidget {
         : 'Provisional Preview';
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 9,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
         color: statusBackground,
         borderRadius: BorderRadius.circular(30),
@@ -132,11 +126,7 @@ class BillDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            statusIcon,
-            color: statusColor,
-            size: 18,
-          ),
+          Icon(statusIcon, color: statusColor, size: 18),
           const SizedBox(width: 6),
           Text(
             statusText,
@@ -151,18 +141,24 @@ class BillDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget informationNotice() {
-    final Color backgroundColor = isVerifiedTariff
-        ? const Color(0xFFEFF6FF)
-        : const Color(0xFFFFF4D8);
+  Widget informationNotice(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+    final Color backgroundColor = isDark
+        ? (isVerifiedTariff ? const Color(0xFF142D4E) : const Color(0xFF3D2D13))
+        : (isVerifiedTariff
+              ? const Color(0xFFEFF6FF)
+              : const Color(0xFFFFF4D8));
 
-    final Color borderColor = isVerifiedTariff
-        ? const Color(0xFFBFDBFE)
-        : const Color(0xFFFFD56B);
+    final Color borderColor = isDark
+        ? (isVerifiedTariff ? const Color(0xFF426A9C) : const Color(0xFF8A671F))
+        : (isVerifiedTariff
+              ? const Color(0xFFBFDBFE)
+              : const Color(0xFFFFD56B));
 
     final Color iconColor = isVerifiedTariff
-        ? blue
-        : const Color(0xFFB77900);
+        ? (isDark ? const Color(0xFF93C5FD) : blue)
+        : (isDark ? const Color(0xFFFDE68A) : const Color(0xFFB77900));
 
     final String message = isVerifiedTariff
         ? 'This estimate uses a locally cached tariff marked as verified. '
@@ -187,19 +183,14 @@ class BillDetailsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isVerifiedTariff
-                ? Icons.info_outline
-                : Icons.warning_amber_rounded,
+            isVerifiedTariff ? Icons.info_outline : Icons.warning_amber_rounded,
             color: iconColor,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                fontSize: 12,
-                color: dark,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.onSurface),
             ),
           ),
         ],
@@ -209,8 +200,9 @@ class BillDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FC),
+      backgroundColor: colors.surface,
       appBar: AppBar(
         title: const Text('Bill Details'),
         foregroundColor: Colors.white,
@@ -226,10 +218,7 @@ class BillDetailsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF064AAB),
-                    Color(0xFF00A2FF),
-                  ],
+                  colors: [Color(0xFF064AAB), Color(0xFF00A2FF)],
                 ),
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -242,7 +231,7 @@ class BillDetailsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  tariffStatusBadge(),
+                  tariffStatusBadge(context),
 
                   const SizedBox(height: 12),
 
@@ -250,10 +239,7 @@ class BillDetailsScreen extends StatelessWidget {
                     isVerifiedTariff
                         ? 'Estimated electricity bill'
                         : 'Provisional bill estimate',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
                   ),
 
                   const SizedBox(height: 6),
@@ -274,29 +260,20 @@ class BillDetailsScreen extends StatelessWidget {
 
             // Billing information.
             panel(
+              context,
               title: 'Billing information',
               child: Column(
                 children: [
-                  line('Provider', result.provider),
+                  line(context, 'Provider', result.provider),
+                  line(context, 'Consumed units', '${result.units} kWh'),
+                  line(context, 'Billing days', '${result.billingDays}'),
+                  line(context, 'Start date', date(startDate)),
+                  line(context, 'End date', date(endDate)),
+                  line(context, 'Tariff effective', result.tariffEffectiveDate),
                   line(
-                    'Consumed units',
-                    '${result.units} kWh',
-                  ),
-                  line(
-                    'Billing days',
-                    '${result.billingDays}',
-                  ),
-                  line('Start date', date(startDate)),
-                  line('End date', date(endDate)),
-                  line(
-                    'Tariff effective',
-                    result.tariffEffectiveDate,
-                  ),
-                  line(
+                    context,
                     'Tariff status',
-                    isVerifiedTariff
-                        ? 'Verified'
-                        : 'Provisional',
+                    isVerifiedTariff ? 'Verified' : 'Provisional',
                   ),
                 ],
               ),
@@ -306,19 +283,15 @@ class BillDetailsScreen extends StatelessWidget {
 
             // Charge summary.
             panel(
+              context,
               title: 'Charge summary',
               child: Column(
                 children: [
-                  line(
-                    'Energy charge',
-                    money(result.energyCharge),
-                  ),
-                  line(
-                    'Fixed charge',
-                    money(result.fixedCharge),
-                  ),
+                  line(context, 'Energy charge', money(result.energyCharge)),
+                  line(context, 'Fixed charge', money(result.fixedCharge)),
                   const Divider(),
                   line(
+                    context,
                     'Estimated total',
                     money(result.total),
                     emphasize: true,
@@ -331,18 +304,16 @@ class BillDetailsScreen extends StatelessWidget {
 
             // Energy charge breakdown.
             panel(
+              context,
               title: 'Energy charge breakdown',
               child: result.breakdown.isEmpty
                   ? const Text('No energy units charged.')
                   : Column(
                       children: result.breakdown.map((item) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 9,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 item.description,
@@ -356,14 +327,12 @@ class BillDetailsScreen extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       '${item.units.toStringAsFixed(2)} kWh × ${money(item.rate)}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF64748B),
+                                      style: TextStyle(
+                                        color: colors.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
-                                  Text(
-                                    money(item.amount),
-                                  ),
+                                  Text(money(item.amount)),
                                 ],
                               ),
                             ],
@@ -376,7 +345,7 @@ class BillDetailsScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Tariff status and calculation disclaimer.
-            informationNotice(),
+            informationNotice(context),
 
             const SizedBox(height: 24),
           ],

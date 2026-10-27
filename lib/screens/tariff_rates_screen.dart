@@ -17,8 +17,8 @@ class TariffRatesScreen extends StatefulWidget {
 
 class _TariffRatesScreenState extends State<TariffRatesScreen> {
   static const Color primaryBlue = Color(0xFF0866D8);
-  static const Color background = Color(0xFFF7F9FC);
-  static const Color textDark = Color(0xFF14213D);
+  ColorScheme get _colors => Theme.of(context).colorScheme;
+  bool get _dark => Theme.of(context).brightness == Brightness.dark;
 
   String selectedProvider = 'CEB';
   late Future<Map<String, dynamic>> _tariffFuture;
@@ -105,9 +105,9 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE1E8F0)),
+        border: Border.all(color: _colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,10 +119,10 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
-                    color: textDark,
+                    color: _colors.onSurface,
                   ),
                 ),
               ),
@@ -145,7 +145,7 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
             flex: 2,
             child: Text(
               label,
-              style: const TextStyle(color: Color(0xFF64748B)),
+              style: TextStyle(color: _colors.onSurfaceVariant),
             ),
           ),
           Expanded(
@@ -214,7 +214,7 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(applicability, style: const TextStyle(color: Color(0xFF64748B))),
+          Text(applicability, style: TextStyle(color: _colors.onSurfaceVariant)),
           const SizedBox(height: 12),
           const Text(
             'Energy charges',
@@ -250,13 +250,13 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: isVerified
-                ? const Color(0xFFE8F5EE)
-                : const Color(0xFFFFF4D8),
+                ? (_dark ? const Color(0xFF173B2A) : const Color(0xFFE8F5EE))
+                : (_dark ? const Color(0xFF433318) : const Color(0xFFFFF4D8)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isVerified
-                  ? const Color(0xFF8CCDA9)
-                  : const Color(0xFFFFD56B),
+                  ? (_dark ? const Color(0xFF427F5A) : const Color(0xFF8CCDA9))
+                  : (_dark ? const Color(0xFF94702A) : const Color(0xFFFFD56B)),
             ),
           ),
           child: Row(
@@ -267,8 +267,8 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
                     ? Icons.verified_outlined
                     : Icons.warning_amber_outlined,
                 color: isVerified
-                    ? const Color(0xFF237A4B)
-                    : const Color(0xFFB77900),
+                    ? (_dark ? const Color(0xFF8FE0A8) : const Color(0xFF237A4B))
+                    : (_dark ? const Color(0xFFFFD47A) : const Color(0xFFB77900)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -276,7 +276,12 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
                   isVerified
                       ? 'Verified tariff from local cache. Check the source document for official details.'
                       : 'Provisional — Unverified. These rates are for development preview only and are not confirmed official CEB/LECO charges.',
-                  style: const TextStyle(fontSize: 13, color: textDark),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isVerified
+                        ? (_dark ? const Color(0xFFD4F7DF) : const Color(0xFF17452C))
+                        : (_dark ? const Color(0xFFFFE9B4) : const Color(0xFF634400)),
+                  ),
                 ),
               ),
             ],
@@ -318,7 +323,7 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
           'The ranges shown are based on the tariff JSON reference period. '
           'Actual bill calculations may adjust for the number of billing days. '
           '${isVerified ? 'Source status: verified in the local tariff cache.' : 'These are not verified official rates.'}',
-          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          style: TextStyle(fontSize: 12, color: _colors.onSurfaceVariant),
         ),
       ],
     );
@@ -327,21 +332,21 @@ class _TariffRatesScreenState extends State<TariffRatesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: _colors.surface,
       appBar: AppBar(
         title: const Text('Electricity Tariff Rates'),
-        backgroundColor: Colors.white,
-        foregroundColor: textDark,
+        backgroundColor: _colors.surface,
+        foregroundColor: _colors.onSurface,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
+          Text(
             'Select Electricity Provider',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: textDark,
+              color: _colors.onSurface,
             ),
           ),
           const SizedBox(height: 12),
