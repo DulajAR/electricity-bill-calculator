@@ -134,6 +134,15 @@ Suggestions, bug reports, and contributions are welcome. Please open an issue to
 - GitHub: [@DulajAR](https://github.com/DulajAR)
 - Repository: [electricity-bill-calculator](https://github.com/DulajAR/electricity-bill-calculator)
 
+## 📱 Download Android App
+
+Download the latest Android APK from GitHub Releases.
+
+[⬇️ Download APK](https://github.com/DulajAR/electricity-bill-calculator/releases/latest)
+
+**Platform:** Android  
+**Built with:** Flutter & Dart
+
 ---
 
 
